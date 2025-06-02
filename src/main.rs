@@ -3,15 +3,55 @@ use anyhow::{bail, ensure, Error, Result};
 const ALIVE_CHAR: char = 'x';
 const DEAD_CHAR: char = '-';
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Coords {
     x: usize,
     y: usize,
 }
 
-impl Coords {
-    pub fn new(x: usize, y: usize) -> Self {
-        Coords { x, y }
+#[derive(Debug)]
+struct Offset {
+    x: isize,
+    y: isize,
+}
+
+#[derive(Debug)]
+enum Direction {
+    N,
+    NE,
+    E,
+    SE,
+    S,
+    SW,
+    W,
+    NW,
+}
+
+impl Direction {
+    fn all() -> [Direction; 8] {
+        [
+            Self::N,
+            Self::NE,
+            Self::E,
+            Self::SE,
+            Self::S,
+            Self::SW,
+            Self::W,
+            Self::NW,
+        ]
+    }
+
+    fn offset(&self) -> Offset {
+        match self {
+            Self::SW => Offset { x: -1, y: -1 },
+            Self::S => Offset { x: 0, y: -1 },
+            Self::SE => Offset { x: 1, y: -1 },
+            Self::W => Offset { x: -1, y: 0 },
+            Self::E => Offset { x: 1, y: 0 },
+            Self::NW => Offset { x: -1, y: 1 },
+            Self::N => Offset { x: 0, y: 1 },
+            Self::NE => Offset { x: 1, y: 1 },
+        }
     }
 }
 
@@ -40,15 +80,74 @@ impl Board {
         Ok(Board { cells, dims })
     }
 
-    fn index(&self, coords: Coords) -> usize {
+    // Translate 2d coordinates to the flattened vec
+    fn index(&self, coords: &Coords) -> usize {
         coords.y * self.dims.x + coords.x
     }
 
-    pub fn alive(&self, coords: Coords) -> bool {
+    fn alive(&self, coords: &Coords) -> bool {
         self.cells[self.index(coords)]
+    }
+
+    fn set_alive(&mut self, coords: &Coords, alive: bool) {
+        let idx = self.index(coords);
+        self.cells[idx] = alive;
+    }
+
+    // Return the coordinates of the neighbor in the specified direction, or None if that would be
+    // off the board
+    fn neighbor_coords(&self, coords: &Coords, dir: &Direction) -> Option<Coords> {
+        let offset = dir.offset();
+        let x = coords.x.checked_add_signed(offset.x)?;
+        let y = coords.y.checked_add_signed(offset.y)?;
+
+        if x >= self.dims.x || y >= self.dims.y {
+            None
+        } else {
+            Some(Coords { x, y })
+        }
+    }
+
+    fn neighbor_alive(&self, coords: &Coords, dir: &Direction) -> bool {
+        match self.neighbor_coords(coords, dir) {
+            Some(neighbor_coords) => self.alive(&neighbor_coords),
+            None => false,
+        }
+    }
+
+    fn num_alive_neighbors(&self, coords: &Coords) -> usize {
+        Direction::all()
+            .iter()
+            .map(|dir| self.neighbor_alive(coords, dir))
+            .filter(|&a| a)
+            .count()
+    }
+
+    fn next_cell_state(&self, coords: &Coords) -> bool {
+        match (self.alive(coords), self.num_alive_neighbors(coords)) {
+            (true, 0..=1) => false, // Underpopulation
+            (true, 2..=3) => true,  // Survival
+            (true, 4..) => false,   // Overpopulation
+            (false, 3) => true,     // Reproduction
+            (false, _) => false,    // Stay dead
+        }
+    }
+
+    fn next(&self) -> Self {
+        let mut next_board = Self::new(self.dims.clone(), None).unwrap();
+
+        for y in 0..self.dims.y {
+            for x in 0..self.dims.x {
+                let coords = Coords { x, y };
+                next_board.set_alive(&coords, self.next_cell_state(&coords));
+            }
+        }
+
+        next_board
     }
 }
 
+// Helper to easily turn human readable strings into a board
 impl TryFrom<&str> for Board {
     type Error = Error;
 
@@ -87,30 +186,33 @@ impl std::fmt::Display for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for y in 0..self.dims.y {
             for x in 0..self.dims.x {
-                let coords = Coords::new(x, y);
-                let ch = if self.alive(coords) {
+                let coords = Coords { x, y };
+                let ch = if self.alive(&coords) {
                     ALIVE_CHAR
                 } else {
                     DEAD_CHAR
                 };
-                write!(f, "{}", ch)?;
+                write!(f, "{ch}")?;
             }
-            if y < self.dims.y - 1 {
-                writeln!(f)?;
-            }
+            write!(f, "\n")?;
         }
         Ok(())
     }
 }
 
 fn main() -> Result<()> {
-    let b: Board = "
-        x-x
-        ---
-        x-x
+    let mut b: Board = "
+        -----
+        -----
+        -xxx-
+        -----
+        -----
     "
     .try_into()?;
 
-    println!("{b}");
+    for _ in 0..10_000_000 {
+        b = b.next();
+    }
+
     Ok(())
 }
