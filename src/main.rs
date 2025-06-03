@@ -1,22 +1,18 @@
 mod board;
+use anyhow::Result;
 use board::{Board, Coords};
 use leptos::{html::Canvas, prelude::*};
 use std::f64;
 use wasm_bindgen::prelude::*;
 
-const CELL_SIZE: usize = 100;
+const CELL_SIZE: usize = 10;
 
-fn main() {
+fn main() -> Result<()> {
     console_error_panic_hook::set_once();
-    let initial_board: Board = "
-        -----
-        --x--
-        --x--
-        --x--
-        -----
-    "
-    .try_into()
-    .unwrap();
+
+    let board = Board::new(Coords { x: 120, y: 120 }, None)?;
+    let add_board = Board::gosper();
+    let initial_board = board.add(add_board, Coords { x: 15, y: 15 })?;
 
     let canvas_height = CELL_SIZE * initial_board.dim_y();
     let canvas_width = CELL_SIZE * initial_board.dim_x();
@@ -30,6 +26,8 @@ fn main() {
             />
         }
     });
+
+    Ok(())
 }
 
 #[component]
@@ -41,7 +39,7 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
     // State to control auto-play
     let (is_running, set_is_running) = signal(false);
     let (interval_id, set_interval_id) = signal(None::<i32>);
-    let (interval_seconds, set_interval_seconds) = signal(0.2f64);
+    let (interval_seconds, set_interval_seconds) = signal(0.05f64);
 
     // Effect to redraw canvas whenever board changes
     Effect::new(move |_| {
@@ -159,18 +157,18 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
                 node_ref=canvas_ref
                 height=canvas_height
                 width=canvas_width
-                style="background-color: black; display: block;"
+                style="background-color: #333333; display: block;"
             ></canvas>
             <div style="margin-top: 10px;">
                 <button on:click=step style="padding: 10px 20px; font-size: 16px; margin-right: 10px;">
-                    "Next Generation"
+                    "Next"
                 </button>
                 <button on:click=toggle_auto_play style="padding: 10px 20px; font-size: 16px;">
-                    {move || if is_running.get() { "Stop" } else { "Start Auto-Play" }}
+                    {move || if is_running.get() { "Stop" } else { "Start" }}
                 </button>
             </div>
             <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                <span>"Interval (seconds):"</span>
+                <span>"Interval (s):"</span>
                 <button on:click=decrease_interval style="padding: 5px 10px; font-size: 14px;">"-"</button>
                 <input
                     type="number"
@@ -187,28 +185,22 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
 }
 
 fn draw(context: web_sys::CanvasRenderingContext2d, b: Board) {
-    // Clear the canvas first
-    context.set_fill_style_str("black");
-    context.fill_rect(
-        0.0,
-        0.0,
-        (CELL_SIZE * b.dim_x()) as f64,
-        (CELL_SIZE * b.dim_y()) as f64,
-    );
-
     // Draw alive cells
     context.set_fill_style_str("green");
     for y in 0..b.dim_y() {
         for x in 0..b.dim_x() {
             let alive = b.alive(&Coords { x, y });
             if alive {
-                context.fill_rect(
-                    (x * CELL_SIZE) as f64,
-                    (y * CELL_SIZE) as f64,
-                    CELL_SIZE as f64,
-                    CELL_SIZE as f64,
-                );
+                context.set_fill_style_str("green");
+            } else {
+                context.set_fill_style_str("black");
             }
+            context.fill_rect(
+                (x * CELL_SIZE) as f64,
+                (y * CELL_SIZE) as f64,
+                (CELL_SIZE - 1) as f64,
+                (CELL_SIZE - 1) as f64,
+            );
         }
     }
 }

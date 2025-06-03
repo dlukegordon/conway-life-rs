@@ -102,6 +102,28 @@ impl Board {
         self.cells[idx] = alive;
     }
 
+    pub fn add(&self, board: Self, insert_coords: Coords) -> Result<Self> {
+        let mut new_board = self.clone();
+
+        if insert_coords.y + board.dim_y() >= self.dim_y()
+            || insert_coords.x + board.dim_x() >= self.dim_x()
+        {
+            bail!("Board must be added inside boundaries");
+        }
+
+        for y in 0..board.dim_y() {
+            for x in 0..board.dim_x() {
+                let new_coords = Coords {
+                    x: x + insert_coords.x,
+                    y: y + insert_coords.y,
+                };
+                new_board.set_alive(&new_coords, board.alive(&Coords { x, y }));
+            }
+        }
+
+        Ok(new_board)
+    }
+
     // Return the coordinates of the neighbor in the specified direction, or None if that would be
     // off the board
     fn neighbor_coords(&self, coords: &Coords, dir: &Direction) -> Option<Coords> {
@@ -144,14 +166,44 @@ impl Board {
     pub fn next(&self) -> Self {
         let mut next_board = Self::new(self.dims.clone(), None).unwrap();
 
-        for y in 0..self.dims.y {
-            for x in 0..self.dims.x {
+        for y in 0..self.dim_y() {
+            for x in 0..self.dim_x() {
                 let coords = Coords { x, y };
                 next_board.set_alive(&coords, self.next_cell_state(&coords));
             }
         }
 
         next_board
+    }
+
+    pub fn blinker() -> Self {
+        "
+        -----
+        --x--
+        --x--
+        --x--
+        -----
+        "
+        .try_into()
+        .unwrap()
+    }
+
+    pub fn gosper() -> Self {
+        "
+        ---------------------------------------
+        --------------------------x------------
+        ------------------------x-x------------
+        --------------xx------xx------------xx-
+        -------------x---x----xx------------xx-
+        --xx--------x-----x---xx---------------
+        --xx--------x---x-xx----x-x------------
+        ------------x-----x-------x------------
+        -------------x---x---------------------
+        --------------xx-----------------------
+        ---------------------------------------
+        "
+        .try_into()
+        .unwrap()
     }
 }
 
