@@ -1,25 +1,32 @@
 mod board;
 
+use board::{Board, Coords};
+
 use leptos::prelude::*;
 use std::f64;
 use wasm_bindgen::prelude::*;
 
+const CELL_SIZE: usize = 100;
+
 fn main() {
     console_error_panic_hook::set_once();
-    mount_to_body(App);
 
-    let b: board::Board = "".try_into().unwrap();
-    draw();
-}
+    let b: Board = "
+        -----
+        --x--
+        --x--
+        --x--
+        -----
+    "
+    .try_into()
+    .unwrap();
+    let b = b.next();
 
-#[component]
-fn App() -> impl IntoView {
-    view! {
-        <canvas id="canvas" height="500" width="500"></canvas>
-    }
-}
+    let canvas_height = CELL_SIZE * b.dim_y();
+    let canvas_width = CELL_SIZE * b.dim_x();
 
-fn draw() {
+    mount_to_body(move || view! { <App canvas_height=canvas_height canvas_width=canvas_width/> });
+
     let document = web_sys::window().unwrap().document().unwrap();
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: web_sys::HtmlCanvasElement = canvas
@@ -34,28 +41,32 @@ fn draw() {
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .unwrap();
 
-    context.begin_path();
+    draw(context, b);
+}
 
-    // Draw the outer circle.
-    context
-        .arc(75.0, 75.0, 50.0, 0.0, f64::consts::PI * 2.0)
-        .unwrap();
+#[component]
+fn App(canvas_height: usize, canvas_width: usize) -> impl IntoView {
+    view! {
+        <canvas id="canvas" height=canvas_height width=canvas_width style="background-color: black;"></canvas>
+    }
+}
 
-    // Draw the mouth.
-    context.move_to(110.0, 75.0);
-    context.arc(75.0, 75.0, 35.0, 0.0, f64::consts::PI).unwrap();
+fn draw(context: web_sys::CanvasRenderingContext2d, b: Board) {
+    context.set_fill_style_str("green");
 
-    // Draw the left eye.
-    context.move_to(65.0, 65.0);
-    context
-        .arc(60.0, 65.0, 5.0, 0.0, f64::consts::PI * 2.0)
-        .unwrap();
-
-    // Draw the right eye.
-    context.move_to(95.0, 65.0);
-    context
-        .arc(90.0, 65.0, 5.0, 0.0, f64::consts::PI * 2.0)
-        .unwrap();
-
-    context.stroke();
+    for y in 0..b.dim_y() {
+        for x in 0..b.dim_x() {
+            let alive = b.alive(&Coords { x, y });
+            if alive {
+                let canvas_y = y * CELL_SIZE;
+                let canvas_x = x * CELL_SIZE;
+                context.fill_rect(
+                    canvas_x as f64,
+                    canvas_y as f64,
+                    CELL_SIZE as f64,
+                    CELL_SIZE as f64,
+                );
+            }
+        }
+    }
 }

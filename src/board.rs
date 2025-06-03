@@ -1,12 +1,12 @@
-use anyhow::{bail, ensure, Error, Result};
+use anyhow::{Error, Result, bail, ensure};
 
 const ALIVE_CHAR: char = 'x';
 const DEAD_CHAR: char = '-';
 
 #[derive(Debug, Clone)]
 pub struct Coords {
-    x: usize,
-    y: usize,
+    pub x: usize,
+    pub y: usize,
 }
 
 #[derive(Debug)]
@@ -80,12 +80,20 @@ impl Board {
         Ok(Board { cells, dims })
     }
 
+    pub fn dim_y(&self) -> usize {
+        self.dims.y
+    }
+
+    pub fn dim_x(&self) -> usize {
+        self.dims.x
+    }
+
     // Translate 2d coordinates to the flattened vec
     fn index(&self, coords: &Coords) -> usize {
         coords.y * self.dims.x + coords.x
     }
 
-    fn alive(&self, coords: &Coords) -> bool {
+    pub fn alive(&self, coords: &Coords) -> bool {
         self.cells[self.index(coords)]
     }
 
