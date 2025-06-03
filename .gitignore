@@ -2,9 +2,11 @@
 *
 
 !.gitignore
-!README.md
-!LICENSE*
-!Cargo.toml
 !Cargo.lock
+!Cargo.toml
+!LICENSE*
+!README.md
+!index.html
+!justfile
 !src/
 !src/**
