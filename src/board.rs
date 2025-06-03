@@ -55,7 +55,7 @@ impl Direction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Board {
     dims: Coords,
     cells: Vec<bool>,

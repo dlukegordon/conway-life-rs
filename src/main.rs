@@ -1,8 +1,6 @@
 mod board;
-
 use board::{Board, Coords};
-
-use leptos::prelude::*;
+use leptos::{html::Canvas, prelude::*};
 use std::f64;
 use wasm_bindgen::prelude::*;
 
@@ -10,8 +8,7 @@ const CELL_SIZE: usize = 100;
 
 fn main() {
     console_error_panic_hook::set_once();
-
-    let b: Board = "
+    let initial_board: Board = "
         -----
         --x--
         --x--
@@ -20,49 +17,194 @@ fn main() {
     "
     .try_into()
     .unwrap();
-    let b = b.next();
 
-    let canvas_height = CELL_SIZE * b.dim_y();
-    let canvas_width = CELL_SIZE * b.dim_x();
+    let canvas_height = CELL_SIZE * initial_board.dim_y();
+    let canvas_width = CELL_SIZE * initial_board.dim_x();
 
-    mount_to_body(move || view! { <App canvas_height=canvas_height canvas_width=canvas_width/> });
-
-    let document = web_sys::window().unwrap().document().unwrap();
-    let canvas = document.get_element_by_id("canvas").unwrap();
-    let canvas: web_sys::HtmlCanvasElement = canvas
-        .dyn_into::<web_sys::HtmlCanvasElement>()
-        .map_err(|_| ())
-        .unwrap();
-
-    let context = canvas
-        .get_context("2d")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap();
-
-    draw(context, b);
+    mount_to_body(move || {
+        view! {
+            <App
+                canvas_height=canvas_height
+                canvas_width=canvas_width
+                initial_board=initial_board
+            />
+        }
+    });
 }
 
 #[component]
-fn App(canvas_height: usize, canvas_width: usize) -> impl IntoView {
+fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl IntoView {
+    // Create reactive state for the board
+    let (board, set_board) = signal(initial_board);
+    let canvas_ref: NodeRef<Canvas> = NodeRef::new();
+
+    // State to control auto-play
+    let (is_running, set_is_running) = signal(false);
+    let (interval_id, set_interval_id) = signal(None::<i32>);
+    let (interval_seconds, set_interval_seconds) = signal(0.2f64);
+
+    // Effect to redraw canvas whenever board changes
+    Effect::new(move |_| {
+        // Get canvas and context
+        let canvas = canvas_ref.get().unwrap();
+        let context = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
+        draw(context, board.get());
+    });
+
+    // Manual step function
+    let step = move |_: web_sys::MouseEvent| {
+        set_board.update(|b| *b = b.next());
+    };
+
+    // Function to start the interval with current settings
+    let start_interval = {
+        let set_board = set_board.clone();
+        let set_interval_id = set_interval_id.clone();
+        move || {
+            let callback = Closure::wrap(Box::new({
+                let set_board = set_board.clone();
+                move || {
+                    set_board.update(|b| *b = b.next());
+                }
+            }) as Box<dyn FnMut()>);
+
+            let id = web_sys::window()
+                .unwrap()
+                .set_interval_with_callback_and_timeout_and_arguments_0(
+                    callback.as_ref().unchecked_ref(),
+                    (interval_seconds.get() * 1000.0) as i32,
+                )
+                .unwrap();
+
+            callback.forget();
+            set_interval_id.set(Some(id));
+        }
+    };
+
+    // Function to stop the interval
+    let stop_interval = move || {
+        if let Some(id) = interval_id.get() {
+            web_sys::window().unwrap().clear_interval_with_handle(id);
+        }
+        set_interval_id.set(None);
+    };
+
+    // Auto-play toggle function
+    let toggle_auto_play = {
+        let start_interval = start_interval.clone();
+        move |_: web_sys::MouseEvent| {
+            if is_running.get() {
+                stop_interval();
+                set_is_running.set(false);
+            } else {
+                start_interval();
+                set_is_running.set(true);
+            }
+        }
+    };
+
+    // Interval control functions
+    let decrease_interval = {
+        let start_interval = start_interval.clone();
+        let stop_interval = stop_interval.clone();
+        move |_: web_sys::MouseEvent| {
+            set_interval_seconds.update(|seconds| {
+                *seconds = (*seconds - 0.01).max(0.0);
+            });
+            // Restart interval if running
+            if is_running.get() {
+                stop_interval();
+                start_interval();
+            }
+        }
+    };
+
+    let increase_interval = {
+        let start_interval = start_interval.clone();
+        let stop_interval = stop_interval.clone();
+        move |_: web_sys::MouseEvent| {
+            set_interval_seconds.update(|seconds| {
+                *seconds += 0.01;
+            });
+            // Restart interval if running
+            if is_running.get() {
+                stop_interval();
+                start_interval();
+            }
+        }
+    };
+
+    let on_interval_input = move |ev: web_sys::Event| {
+        let target = ev.target().unwrap();
+        let input = target.dyn_into::<web_sys::HtmlInputElement>().unwrap();
+        if let Ok(value) = input.value().parse::<f64>() {
+            set_interval_seconds.set(value.max(0.0));
+            // Restart interval if running
+            if is_running.get() {
+                stop_interval();
+                start_interval();
+            }
+        }
+    };
+
     view! {
-        <canvas id="canvas" height=canvas_height width=canvas_width style="background-color: black;"></canvas>
+        <div>
+            <canvas
+                id="canvas"
+                node_ref=canvas_ref
+                height=canvas_height
+                width=canvas_width
+                style="background-color: black; display: block;"
+            ></canvas>
+            <div style="margin-top: 10px;">
+                <button on:click=step style="padding: 10px 20px; font-size: 16px; margin-right: 10px;">
+                    "Next Generation"
+                </button>
+                <button on:click=toggle_auto_play style="padding: 10px 20px; font-size: 16px;">
+                    {move || if is_running.get() { "Stop" } else { "Start Auto-Play" }}
+                </button>
+            </div>
+            <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                <span>"Interval (seconds):"</span>
+                <button on:click=decrease_interval style="padding: 5px 10px; font-size: 14px;">"-"</button>
+                <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    prop:value=move || format!("{:.2}", interval_seconds.get())
+                    on:input=on_interval_input
+                    style="width: 80px; padding: 5px; text-align: center;"
+                />
+                <button on:click=increase_interval style="padding: 5px 10px; font-size: 14px;">"+"</button>
+            </div>
+        </div>
     }
 }
 
 fn draw(context: web_sys::CanvasRenderingContext2d, b: Board) {
-    context.set_fill_style_str("green");
+    // Clear the canvas first
+    context.set_fill_style_str("black");
+    context.fill_rect(
+        0.0,
+        0.0,
+        (CELL_SIZE * b.dim_x()) as f64,
+        (CELL_SIZE * b.dim_y()) as f64,
+    );
 
+    // Draw alive cells
+    context.set_fill_style_str("green");
     for y in 0..b.dim_y() {
         for x in 0..b.dim_x() {
             let alive = b.alive(&Coords { x, y });
             if alive {
-                let canvas_y = y * CELL_SIZE;
-                let canvas_x = x * CELL_SIZE;
                 context.fill_rect(
-                    canvas_x as f64,
-                    canvas_y as f64,
+                    (x * CELL_SIZE) as f64,
+                    (y * CELL_SIZE) as f64,
                     CELL_SIZE as f64,
                     CELL_SIZE as f64,
                 );
