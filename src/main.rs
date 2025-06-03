@@ -39,7 +39,7 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
     // State to control auto-play
     let (is_running, set_is_running) = signal(false);
     let (interval_id, set_interval_id) = signal(None::<i32>);
-    let (interval_seconds, set_interval_seconds) = signal(0.05f64);
+    let (interval_ms, set_interval_ms) = signal(50i32); // Default 50ms
 
     // Effect to redraw canvas whenever board changes
     Effect::new(move |_| {
@@ -75,7 +75,7 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
                 .unwrap()
                 .set_interval_with_callback_and_timeout_and_arguments_0(
                     callback.as_ref().unchecked_ref(),
-                    (interval_seconds.get() * 1000.0) as i32,
+                    interval_ms.get(),
                 )
                 .unwrap();
 
@@ -111,8 +111,8 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
         let start_interval = start_interval.clone();
         let stop_interval = stop_interval.clone();
         move |_: web_sys::MouseEvent| {
-            set_interval_seconds.update(|seconds| {
-                *seconds = (*seconds - 0.01).max(0.0);
+            set_interval_ms.update(|ms| {
+                *ms = (*ms - 5).max(10);
             });
             // Restart interval if running
             if is_running.get() {
@@ -126,8 +126,8 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
         let start_interval = start_interval.clone();
         let stop_interval = stop_interval.clone();
         move |_: web_sys::MouseEvent| {
-            set_interval_seconds.update(|seconds| {
-                *seconds += 0.01;
+            set_interval_ms.update(|ms| {
+                *ms += 5;
             });
             // Restart interval if running
             if is_running.get() {
@@ -140,8 +140,8 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
     let on_interval_input = move |ev: web_sys::Event| {
         let target = ev.target().unwrap();
         let input = target.dyn_into::<web_sys::HtmlInputElement>().unwrap();
-        if let Ok(value) = input.value().parse::<f64>() {
-            set_interval_seconds.set(value.max(0.0));
+        if let Ok(value) = input.value().parse::<i32>() {
+            set_interval_ms.set(value.max(10));
             // Restart interval if running
             if is_running.get() {
                 stop_interval();
@@ -168,13 +168,13 @@ fn App(canvas_height: usize, canvas_width: usize, initial_board: Board) -> impl 
                 </button>
             </div>
             <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                <span>"Interval (s):"</span>
+                <span>"Interval (ms):"</span>
                 <button on:click=decrease_interval style="padding: 5px 10px; font-size: 14px;">"-"</button>
                 <input
                     type="number"
-                    step="0.1"
-                    min="0"
-                    prop:value=move || format!("{:.2}", interval_seconds.get())
+                    step="1"
+                    min="10"
+                    prop:value=move || interval_ms.get().to_string()
                     on:input=on_interval_input
                     style="width: 80px; padding: 5px; text-align: center;"
                 />
