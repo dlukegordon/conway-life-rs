@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head><link rel="modulepreload" href="/conway-life-rs/dist/conway-life-rs-5c165246bce761f0.js" crossorigin="anonymous" integrity="sha384-ZAdR4IIODIkcNGSQ8U6AHMxCdgAv4ooJ9wK9gkgSnjYhvQdKJ3bT5u8zZpAojciA"><link rel="preload" href="/conway-life-rs/dist/conway-life-rs-5c165246bce761f0_bg.wasm" crossorigin="anonymous" integrity="sha384-a+0OMjR/PcMKmBZtQT4Tl22bMJbMXCoKu3Zz8XxDLXnrHm9gd2y+jfXkn8cbY4SD" as="fetch" type="application/wasm"></head>
+  <body>
+<script type="module">
+import init, * as bindings from '/conway-life-rs/dist/conway-life-rs-5c165246bce761f0.js';
+const wasm = await init({ module_or_path: '/conway-life-rs/dist/conway-life-rs-5c165246bce761f0_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script></body>
+</html>

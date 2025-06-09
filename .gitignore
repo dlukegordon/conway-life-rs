@@ -6,6 +6,9 @@
 !Cargo.toml
 !LICENSE*
 !README.md
+!Trunk.toml
+!dist/
+!dist/**
 !index.html
 !justfile
 !src/
